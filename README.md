@@ -174,7 +174,33 @@ Run inference using the trained model:
 
 ```bash
 python src/predict.py
-```
+``` 
+
+### Output:
+
+Restoring trained regressor...
+Loading test split...
+Generating predictions...
+Model Performance:
+R² Score: 0.5758
+Mean Squared Error: 0.5559
+
+Sample Predictions (first 10):
+True: 0.48 | Predicted: 0.72 | Diff: 0.24
+True: 0.46 | Predicted: 1.76 | Diff: 1.31
+True: 5.00 | Predicted: 2.71 | Diff: 2.29
+True: 2.19 | Predicted: 2.84 | Diff: 0.65
+True: 2.78 | Predicted: 2.60 | Diff: 0.18
+True: 1.59 | Predicted: 2.01 | Diff: 0.42
+True: 1.98 | Predicted: 2.65 | Diff: 0.66
+True: 1.57 | Predicted: 2.17 | Diff: 0.59
+True: 3.40 | Predicted: 2.74 | Diff: 0.66
+True: 4.47 | Predicted: 3.92 | Diff: 0.55
+
+Prediction completed successfully!
+
+````
+
 
 - Outputs model performance and sample predictions.
 
@@ -194,7 +220,32 @@ Run the test suite using pytest:
 
 ```bash
 pytest tests/ -v
-```
+````
+
+- Tests ensure the training pipeline works correctly, including:
+    - Data loading
+    - Model training
+    - Model saving/loading
+    - Quantization
+    - Prediction accuracy
+
+  ### Expected Output:
+  ============================= test session starts =============================
+  collecting ... collected 5 items
+
+test_train.py::TestTraining::test_dataset_loading PASSED                 [ 20%]
+test_train.py::TestTraining::test_model_creation PASSED                  [ 40%]
+test_train.py::TestTraining::test_model_training PASSED                  [ 60%]
+test_train.py::TestTraining::test_model_performance PASSED               [ 80%]Model R² Score: 0.5758
+Model MSE: 0.5559
+
+test_train.py::TestTraining::test_model_save_load PASSED                 [100%]
+
+============================== 5 passed in 3.06s ==============================
+
+````
+    
+    
 
 - Tests cover data loading, model training, saving/loading, and performance.
 
@@ -209,10 +260,7 @@ Build and run the project in a Docker container:
 2. **Run the container:**
    ```bash
    docker run --rm mlops-linear-regression
-   ```
-
-- The container will execute the prediction script by default.
-
+ 
 ## CI/CD Pipeline
 
 - Automated with GitHub Actions (`.github/workflows/ci.yml`):
