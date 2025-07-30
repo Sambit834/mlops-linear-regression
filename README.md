@@ -172,11 +172,11 @@ MSE (quantized 16-bit model): 0.5567
 
 Run inference using the trained model:
 
-```bash
 python src/predict.py
-``` 
 
-### Output:
+***Output:***
+
+````
 
 Restoring trained regressor...
 Loading test split...
