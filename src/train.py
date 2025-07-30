@@ -1,3 +1,5 @@
+import numpy as np
+
 from utils import (
     load_dataset, create_model, save_model,
     calculate_metrics
@@ -20,9 +22,13 @@ def main():
 
     # Calculate metrics
     r2, mse = calculate_metrics(y_test, y_pred)
+    max_pred_error = np.max(np.abs(y_test - y_pred))
+    mean_pred_error = np.mean(np.abs(y_test - y_pred))
 
     print(f"R² Score: {r2:.4f}")
     print(f"Mean Squared Error (Loss): {mse:.4f}")
+    print(f"Max Prediction Error: {max_pred_error:.4f}")
+    print(f"Mean Prediction Error: {mean_pred_error:.4f}")
 
     # Save model
     model_path = "models/linear_regression_model.joblib"
