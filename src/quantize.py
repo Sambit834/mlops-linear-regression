@@ -9,7 +9,7 @@ from utils import float_to_uint16, uint16_to_float, float_to_uint8, uint8_to_flo
 def quantize_main():
     """Main quantization entry point."""
     print("Restoring trained regressor...")
-    reg = restore_model("models/linear_regression_model.joblib")
+    reg = restore_model("artifacts/linear_regression_model.joblib")
 
     # Extract coefficients and intercept
     weights = reg.coef_
@@ -24,8 +24,8 @@ def quantize_main():
         'weights': weights,
         'bias': bias
     }
-    os.makedirs("models", exist_ok=True)
-    joblib.dump(params_raw, "models/unquant_params.joblib")
+    os.makedirs("artifacts", exist_ok=True)
+    joblib.dump(params_raw, "artifacts/unquant_params.joblib")
 
     q_weights16, w16_min, w16_max, w16_scale = float_to_uint16(weights)
     q_bias16, b16_min, b16_max, b16_scale = float_to_uint16(np.array([bias]))
@@ -45,12 +45,12 @@ def quantize_main():
         'b16_max': b16_max,
         'b16_scale': b16_scale
     }
-    joblib.dump(params_quant, "models/quant_params.joblib")
-    print("Quantized parameters saved to models/quant_params.joblib")
+    joblib.dump(params_quant, "artifacts/quant_params.joblib")
+    print("Quantized parameters saved to artifacts/quant_params.joblib")
 
     # Print model size difference
-    orig_sz = os.path.getsize("models/linear_regression_model.joblib")
-    quant_sz = os.path.getsize("models/quant_params.joblib")
+    orig_sz = os.path.getsize("artifacts/linear_regression_model.joblib")
+    quant_sz = os.path.getsize("artifacts/quant_params.joblib")
     print(f"\nModel size before quantization: {orig_sz / 1024:.2f} KB")
     print(f"Model size after quantization:  {quant_sz / 1024:.2f} KB")
     print(f"Size reduction:                {(orig_sz - quant_sz) / 1024:.2f} KB")
@@ -116,10 +116,10 @@ def quantize_main():
         'b8_max': b8_max,
         'b8_scale': b8_scale
     }
-    joblib.dump(params_quant8, "models/quant_params8.joblib")
-    print("Quantized parameters (8-bit) saved to models/quant_params8.joblib")
+    joblib.dump(params_quant8, "artifacts/quant_params8.joblib")
+    print("Quantized parameters (8-bit) saved to artifacts/quant_params8.joblib")
 
-    quant_sz8 = os.path.getsize("models/quant_params8.joblib")
+    quant_sz8 = os.path.getsize("artifacts/quant_params8.joblib")
     print(f"Model size after 8-bit quantization:  {quant_sz8 / 1024:.2f} KB")
     print(f"Size reduction (8-bit):                {(orig_sz - quant_sz8) / 1024:.2f} KB")
 

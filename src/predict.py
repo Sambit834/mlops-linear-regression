@@ -4,7 +4,7 @@ from utils import restore_model, fetch_data_split, regression_metrics
 def run_prediction():
     """Prediction entry point for Docker container."""
     print("Restoring trained regressor...")
-    reg = restore_model("models/linear_regression_model.joblib")
+    reg = restore_model("artifacts/linear_regression_model.joblib")
 
     print("Loading test split...")
     train_x, test_x, train_y, test_y = fetch_data_split()

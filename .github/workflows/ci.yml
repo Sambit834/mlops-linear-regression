@@ -76,7 +76,7 @@ jobs:
         with:
           name: quantized-artifacts
           path: |
-            src/models/
+            src/artifacts/
           retention-days: 30
           if-no-files-found: error
 

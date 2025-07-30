@@ -31,7 +31,7 @@ def run_training():
     print(f"Mean Prediction Error: {mean_err:.4f}")
 
     # Save model
-    out_model = "models/linear_regression_model.joblib"
+    out_model = "artifacts/linear_regression_model.joblib"
     persist_model(reg, out_model)
     print(f"Model saved to {out_model}")
 
