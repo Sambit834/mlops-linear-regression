@@ -1,31 +1,31 @@
-from utils import load_model, load_dataset, calculate_metrics
+from utils import restore_model, fetch_data_split, regression_metrics
 
 
-def main():
-    """Main prediction function for Docker container."""
-    print("Loading trained model...")
-    model = load_model("models/linear_regression_model.joblib")
+def run_prediction():
+    """Prediction entry point for Docker container."""
+    print("Restoring trained regressor...")
+    reg = restore_model("models/linear_regression_model.joblib")
 
-    print("Loading test dataset...")
-    X_train, X_test, y_train, y_test = load_dataset()
+    print("Loading test split...")
+    train_x, test_x, train_y, test_y = fetch_data_split()
 
-    print("Making predictions...")
-    y_pred = model.predict(X_test)
+    print("Generating predictions...")
+    preds = reg.predict(test_x)
 
-    # Calculate metrics
-    r2, mse = calculate_metrics(y_test, y_pred)
+    # Compute metrics
+    r2_val, mse_val = regression_metrics(test_y, preds)
 
     print(f"Model Performance:")
-    print(f"R² Score: {r2:.4f}")
-    print(f"Mean Squared Error: {mse:.4f}")
+    print(f"R² Score: {r2_val:.4f}")
+    print(f"Mean Squared Error: {mse_val:.4f}")
 
     print("\nSample Predictions (first 10):")
-    for i in range(10):
-        print(f"True: {y_test[i]:.2f} | Predicted: {y_pred[i]:.2f} | Diff: {abs(y_test[i] - y_pred[i]):.2f}")
+    for idx in range(10):
+        print(f"True: {test_y[idx]:.2f} | Predicted: {preds[idx]:.2f} | Diff: {abs(test_y[idx] - preds[idx]):.2f}")
 
     print("\nPrediction completed successfully!")
     return True
 
 
 if __name__ == "__main__":
-    main()
+    run_prediction()

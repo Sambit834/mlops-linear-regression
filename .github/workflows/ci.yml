@@ -7,121 +7,121 @@ on:
     branches: [ master ]
 
 jobs:
-  test_suite:
+  run_tests:
     runs-on: ubuntu-latest
-    name: Run Test Suite
+    name: Execute Test Suite
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
 
-      - name: Install dependencies
+      - name: Install project dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run tests
+      - name: Execute tests
         run: |
           cd src && python -m pytest ../tests/ -v
 
-  train_and_quantize:
+  model_train_quant:
     runs-on: ubuntu-latest
-    name: Train Model and Quantize
-    needs: test_suite
+    name: Train and Quantize Model
+    needs: run_tests
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
 
-      - name: Install dependencies
+      - name: Install project dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Create models directory
+      - name: Prepare artifacts directory
         run: |
-          mkdir -p models
+          mkdir -p artifacts
 
-      - name: Train model
+      - name: Train regression model
         run: |
           cd src
           python train.py
 
-      - name: Quantize model
+      - name: Quantize regression model
         run: |
           cd src
           python quantize.py
 
-      - name: Verify artifacts exist
+      - name: List model artifacts
         run: |
-          echo "Contents of models directory:"
-          ls -la models/
+          echo "Artifacts in artifacts directory:"
+          ls -la artifacts/
           echo "Current working directory:"
           pwd
-          echo "All files in current directory:"
+          echo "All .joblib files found:"
           find . -name "*.joblib" -type f
 
-      - name: Upload model artifacts
+      - name: Upload quantized model artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: model-artifacts
+          name: quantized-artifacts
           path: |
             src/models/
           retention-days: 30
           if-no-files-found: error
 
-  build_and_test_container:
+  docker_build_test:
     runs-on: ubuntu-latest
-    name: Build and Test Docker Container
-    needs: train_and_quantize
+    name: Build and Validate Docker Image
+    needs: model_train_quant
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
 
-      - name: Install dependencies
+      - name: Install project dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Create models directory
+      - name: Prepare artifacts directory
         run: |
-          mkdir -p models
+          mkdir -p artifacts
 
-      - name: Download model artifacts
+      - name: Download quantized model artifacts
         uses: actions/download-artifact@v4
         with:
-          name: model-artifacts
-          path: models/
+          name: quantized-artifacts
+          path: artifacts/
 
-      - name: Verify downloaded artifacts
+      - name: Validate downloaded artifacts
         run: |
           echo "Downloaded artifacts:"
-          ls -la models/
+          ls -la artifacts/
           echo "Checking for required model files:"
-          test -f models/linear_regression_model.joblib && echo "Main model found" || echo "Main model missing"
-          test -f models/unquant_params.joblib && echo "Unquant params found" || echo "Unquant params missing"
-          test -f models/quant_params.joblib && echo "Quant params found" || echo "Quant params missing"
+          test -f artifacts/linear_regression_model.joblib && echo "Main model found" || echo "Main model missing"
+          test -f artifacts/unquant_params.joblib && echo "Unquant params found" || echo "Unquant params missing"
+          test -f artifacts/quant_params.joblib && echo "Quant params found" || echo "Quant params missing"
 
       - name: Build Docker image
         run: |
           docker build -t mlops-linear-regression .
 
-      - name: Test Docker container
+      - name: Run Docker container for validation
         run: |
           docker run --rm mlops-linear-regression

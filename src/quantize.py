@@ -3,92 +3,90 @@ import os
 import joblib
 import numpy as np
 
-from utils import quantize_to_uint16, dequantize_from_uint16, quantize_to_uint8, dequantize_from_uint8, load_model
+from utils import float_to_uint16, uint16_to_float, float_to_uint8, uint8_to_float, restore_model
 
 
-def main():
-    """Main quantization function."""
-    print("Loading trained model...")
-    model = load_model("models/linear_regression_model.joblib")
+def quantize_main():
+    """Main quantization entry point."""
+    print("Restoring trained regressor...")
+    reg = restore_model("models/linear_regression_model.joblib")
 
     # Extract coefficients and intercept
-    coef = model.coef_
-    intercept = model.intercept_
+    weights = reg.coef_
+    bias = reg.intercept_
 
-    print(f"Original coefficients shape: {coef.shape}")
-    print(f"Original intercept: {intercept}")
-    print(f"Original coef values: {coef}")
+    print(f"Original weights shape: {weights.shape}")
+    print(f"Original bias: {bias}")
+    print(f"Original weight values: {weights}")
 
     # Save raw parameters
-    raw_params = {
-        'coef': coef,
-        'intercept': intercept
+    params_raw = {
+        'weights': weights,
+        'bias': bias
     }
     os.makedirs("models", exist_ok=True)
-    joblib.dump(raw_params, "models/unquant_params.joblib")
+    joblib.dump(params_raw, "models/unquant_params.joblib")
 
-    quant_coef16, coef16_min, coef16_max, coef16_scale = quantize_to_uint16(coef)
-    quant_intercept16, int16_min, int16_max, int16_scale = quantize_to_uint16(np.array([intercept]))
+    q_weights16, w16_min, w16_max, w16_scale = float_to_uint16(weights)
+    q_bias16, b16_min, b16_max, b16_scale = float_to_uint16(np.array([bias]))
 
-    print(f"\nQuantizing intercept...")
-    print(f"Intercept value: {intercept:.8f}")
-    print(f"Intercept scale factor: {int16_scale:.2f}")
+    print(f"\nQuantizing bias...")
+    print(f"Bias value: {bias:.8f}")
+    print(f"Bias scale factor: {b16_scale:.2f}")
 
     # Save quantized parameters with metadata
-    quant_params = {
-        'quant_coef16': quant_coef16,
-        'coef16_min': coef16_min,
-        'coef16_max': coef16_max,
-        'coef16_scale': coef16_scale,
-        'quant_intercept16': quant_intercept16[0],
-        'int16_min': int16_min,
-        'int16_max': int16_max,
-        'int16_scale': int16_scale
+    params_quant = {
+        'q_weights16': q_weights16,
+        'w16_min': w16_min,
+        'w16_max': w16_max,
+        'w16_scale': w16_scale,
+        'q_bias16': q_bias16[0],
+        'b16_min': b16_min,
+        'b16_max': b16_max,
+        'b16_scale': b16_scale
     }
-    joblib.dump(quant_params, "models/quant_params.joblib")
+    joblib.dump(params_quant, "models/quant_params.joblib")
     print("Quantized parameters saved to models/quant_params.joblib")
 
     # Print model size difference
-
-    orig_size = os.path.getsize("models/linear_regression_model.joblib")
-    quant_size = os.path.getsize("models/quant_params.joblib")
-    print(f"\nModel size before quantization: {orig_size / 1024:.2f} KB")
-    print(f"Model size after quantization:  {quant_size / 1024:.2f} KB")
-    print(f"Size reduction:                {(orig_size - quant_size) / 1024:.2f} KB")
+    orig_sz = os.path.getsize("models/linear_regression_model.joblib")
+    quant_sz = os.path.getsize("models/quant_params.joblib")
+    print(f"\nModel size before quantization: {orig_sz / 1024:.2f} KB")
+    print(f"Model size after quantization:  {quant_sz / 1024:.2f} KB")
+    print(f"Size reduction:                {(orig_sz - quant_sz) / 1024:.2f} KB")
 
     # Dequantize for inference
-    dequant_coef16 = dequantize_from_uint16(quant_coef16, coef16_min, coef16_max, coef16_scale)
-    dequant_intercept16 = \
-    dequantize_from_uint16(np.array([quant_params['quant_intercept16']]), int16_min, int16_max, int16_scale)[0]
+    dq_weights16 = uint16_to_float(q_weights16, w16_min, w16_max, w16_scale)
+    dq_bias16 = uint16_to_float(np.array([params_quant['q_bias16']]), b16_min, b16_max, b16_scale)[0]
 
     # Calculate coefficient and intercept errors
-    coef_error = np.abs(coef - dequant_coef16).max()
-    intercept_error = np.abs(intercept - dequant_intercept16)
-    print(f"Max coefficient error (16-bit): {coef_error:.8f}")
-    print(f"Intercept error (16-bit): {intercept_error:.8f}")
+    w_err = np.abs(weights - dq_weights16).max()
+    b_err = np.abs(bias - dq_bias16)
+    print(f"Max weight error (16-bit): {w_err:.8f}")
+    print(f"Bias error (16-bit): {b_err:.8f}")
 
     # Inference test and output formatting
-    from utils import load_dataset
-    X_train, X_test, y_train, y_test = load_dataset()
+    from utils import fetch_data_split
+    train_x, test_x, train_y, test_y = fetch_data_split()
 
     # First 5 samples
-    original_pred = model.predict(X_test[:5])
-    manual_original_pred = X_test[:5] @ coef + intercept
-    manual_dequant_pred = X_test[:5] @ dequant_coef16 + dequant_intercept16
+    pred_orig = reg.predict(test_x[:5])
+    pred_manual_orig = test_x[:5] @ weights + bias
+    pred_manual_dq = test_x[:5] @ dq_weights16 + dq_bias16
 
     print("\nInference Test (first 5 samples):")
-    print(f"Original predictions (sklearn): {original_pred}")
-    print(f"Manual original predictions:    {manual_original_pred}")
-    print(f"Manual dequant predictions:     {manual_dequant_pred}")
+    print(f"Original predictions (sklearn): {pred_orig}")
+    print(f"Manual original predictions:    {pred_manual_orig}")
+    print(f"Manual dequant predictions:     {pred_manual_dq}")
 
     print("\nDifferences:")
-    print(f"Sklearn vs manual original: {np.abs(original_pred - manual_original_pred)}")
-    print(f"Original vs dequant manual:  {np.abs(manual_original_pred - manual_dequant_pred)}")
-    original_vs_dequant_diff = np.abs(original_pred - manual_dequant_pred)
-    print(f"Absolute differences: {original_vs_dequant_diff}")
-    print(f"Max difference: {original_vs_dequant_diff.max()}")
-    print(f"Mean difference: {original_vs_dequant_diff.mean()}")
-    max_diff = original_vs_dequant_diff.max()
+    print(f"Sklearn vs manual original: {np.abs(pred_orig - pred_manual_orig)}")
+    print(f"Original vs dequant manual:  {np.abs(pred_manual_orig - pred_manual_dq)}")
+    orig_vs_dq_diff = np.abs(pred_orig - pred_manual_dq)
+    print(f"Absolute differences: {orig_vs_dq_diff}")
+    print(f"Max difference: {orig_vs_dq_diff.max()}")
+    print(f"Mean difference: {orig_vs_dq_diff.mean()}")
+    max_diff = orig_vs_dq_diff.max()
     if max_diff < 0.1:
         print(f"Quantization quality is good (max diff: {max_diff:.6f})")
     elif max_diff < 1.0:
@@ -97,55 +95,54 @@ def main():
         print(f"Quantization quality is poor (max diff: {max_diff:.6f})")
 
     # Calculate prediction errors for quantized (dequantized) model
-    max_pred_error = np.max(np.abs(y_test - (X_test @ dequant_coef16 + dequant_intercept16)))
-    mean_pred_error = np.mean(np.abs(y_test - (X_test @ dequant_coef16 + dequant_intercept16)))
-    print(f"Max Prediction Error (quantized 16-bit): {max_pred_error:.4f}")
-    print(f"Mean Prediction Error (quantized 16-bit): {mean_pred_error:.4f}")
+    max_pred_err = np.max(np.abs(test_y - (test_x @ dq_weights16 + dq_bias16)))
+    mean_pred_err = np.mean(np.abs(test_y - (test_x @ dq_weights16 + dq_bias16)))
+    print(f"Max Prediction Error (quantized 16-bit): {max_pred_err:.4f}")
+    print(f"Mean Prediction Error (quantized 16-bit): {mean_pred_err:.4f}")
 
     # 8-bit quantization
-    quant_coef8, coef8_min, coef8_max, coef8_scale = quantize_to_uint8(coef)
-    quant_intercept8, int8_min, int8_max, int8_scale = quantize_to_uint8(np.array([intercept]))
-    print(f"\nQuantizing intercept (8-bit)...")
-    print(f"Intercept value: {intercept:.8f}")
-    print(f"Intercept scale factor (8-bit): {int8_scale:.2f}")
-    quant_params8 = {
-        'quant_coef8': quant_coef8,
-        'coef8_min': coef8_min,
-        'coef8_max': coef8_max,
-        'coef8_scale': coef8_scale,
-        'quant_intercept8': quant_intercept8[0],
-        'int8_min': int8_min,
-        'int8_max': int8_max,
-        'int8_scale': int8_scale
+    q_weights8, w8_min, w8_max, w8_scale = float_to_uint8(weights)
+    q_bias8, b8_min, b8_max, b8_scale = float_to_uint8(np.array([bias]))
+    print(f"\nQuantizing bias (8-bit)...")
+    print(f"Bias value: {bias:.8f}")
+    print(f"Bias scale factor (8-bit): {b8_scale:.2f}")
+    params_quant8 = {
+        'q_weights8': q_weights8,
+        'w8_min': w8_min,
+        'w8_max': w8_max,
+        'w8_scale': w8_scale,
+        'q_bias8': q_bias8[0],
+        'b8_min': b8_min,
+        'b8_max': b8_max,
+        'b8_scale': b8_scale
     }
-    joblib.dump(quant_params8, "models/quant_params8.joblib")
+    joblib.dump(params_quant8, "models/quant_params8.joblib")
     print("Quantized parameters (8-bit) saved to models/quant_params8.joblib")
 
-    quant_size8 = os.path.getsize("models/quant_params8.joblib")
-    print(f"Model size after 8-bit quantization:  {quant_size8 / 1024:.2f} KB")
-    print(f"Size reduction (8-bit):                {(orig_size - quant_size8) / 1024:.2f} KB")
+    quant_sz8 = os.path.getsize("models/quant_params8.joblib")
+    print(f"Model size after 8-bit quantization:  {quant_sz8 / 1024:.2f} KB")
+    print(f"Size reduction (8-bit):                {(orig_sz - quant_sz8) / 1024:.2f} KB")
 
     # Dequantize for inference (8-bit)
-    dequant_coef8 = dequantize_from_uint8(quant_coef8, coef8_min, coef8_max, coef8_scale)
-    dequant_intercept8 = \
-    dequantize_from_uint8(np.array([quant_params8['quant_intercept8']]), int8_min, int8_max, int8_scale)[0]
+    dq_weights8 = uint8_to_float(q_weights8, w8_min, w8_max, w8_scale)
+    dq_bias8 = uint8_to_float(np.array([params_quant8['q_bias8']]), b8_min, b8_max, b8_scale)[0]
 
     # Calculate coefficient and intercept errors (8-bit)
-    coef_error8 = np.abs(coef - dequant_coef8).max()
-    intercept_error8 = np.abs(intercept - dequant_intercept8)
-    print(f"Max coefficient error (8-bit): {coef_error8:.8f}")
-    print(f"Intercept error (8-bit): {intercept_error8:.8f}")
+    w_err8 = np.abs(weights - dq_weights8).max()
+    b_err8 = np.abs(bias - dq_bias8)
+    print(f"Max weight error (8-bit): {w_err8:.8f}")
+    print(f"Bias error (8-bit): {b_err8:.8f}")
 
     # Inference test and output formatting (8-bit)
-    from utils import load_dataset
-    X_train, X_test, y_train, y_test = load_dataset()
-    manual_dequant_pred8 = X_test[:5] @ dequant_coef8 + dequant_intercept8
-    print("\nManual dequant predictions (8-bit):     ", manual_dequant_pred8)
-    original_vs_dequant_diff8 = np.abs(model.predict(X_test[:5]) - manual_dequant_pred8)
-    print(f"Absolute differences (8-bit): {original_vs_dequant_diff8}")
-    print(f"Max difference (8-bit): {original_vs_dequant_diff8.max()}")
-    print(f"Mean difference (8-bit): {original_vs_dequant_diff8.mean()}")
-    max_diff8 = original_vs_dequant_diff8.max()
+    from utils import fetch_data_split
+    train_x, test_x, train_y, test_y = fetch_data_split()
+    pred_manual_dq8 = test_x[:5] @ dq_weights8 + dq_bias8
+    print("\nManual dequant predictions (8-bit):     ", pred_manual_dq8)
+    orig_vs_dq_diff8 = np.abs(reg.predict(test_x[:5]) - pred_manual_dq8)
+    print(f"Absolute differences (8-bit): {orig_vs_dq_diff8}")
+    print(f"Max difference (8-bit): {orig_vs_dq_diff8.max()}")
+    print(f"Mean difference (8-bit): {orig_vs_dq_diff8.mean()}")
+    max_diff8 = orig_vs_dq_diff8.max()
     if max_diff8 < 0.1:
         print(f"Quantization quality (8-bit) is good (max diff: {max_diff8:.6f})")
     elif max_diff8 < 1.0:
@@ -154,26 +151,25 @@ def main():
         print(f"Quantization quality (8-bit) is poor (max diff: {max_diff8:.6f})")
 
     # Calculate prediction errors for quantized (dequantized) model (8-bit)
-    max_pred_error8 = np.max(np.abs(y_test - (X_test @ dequant_coef8 + dequant_intercept8)))
-    mean_pred_error8 = np.mean(np.abs(y_test - (X_test @ dequant_coef8 + dequant_intercept8)))
-    print(f"Max Prediction Error (quantized 8-bit): {max_pred_error8:.4f}")
-    print(f"Mean Prediction Error (quantized 8-bit): {mean_pred_error8:.4f}")
+    max_pred_err8 = np.max(np.abs(test_y - (test_x @ dq_weights8 + dq_bias8)))
+    mean_pred_err8 = np.mean(np.abs(test_y - (test_x @ dq_weights8 + dq_bias8)))
+    print(f"Max Prediction Error (quantized 8-bit): {max_pred_err8:.4f}")
+    print(f"Mean Prediction Error (quantized 8-bit): {mean_pred_err8:.4f}")
     print("\nQuantization completed successfully!\n")
 
     # Calculate R2 and MSE for 8-bit quantized model
-    y_pred8 = X_test @ dequant_coef8 + dequant_intercept8
-    from utils import calculate_metrics
-    r2_8, mse_8 = calculate_metrics(y_test, y_pred8)
+    y_pred8 = test_x @ dq_weights8 + dq_bias8
+    from utils import regression_metrics
+    r2_8, mse_8 = regression_metrics(test_y, y_pred8)
     print(f"R2 score (quantized 8-bit model): {r2_8:.4f}")
     print(f"MSE (quantized 8-bit model): {mse_8:.4f}")
 
     # Calculate R2 and MSE for 16-bit quantized model
-    y_pred16 = X_test @ dequant_coef16 + dequant_intercept16
-    from utils import calculate_metrics
-    r2_16, mse_16 = calculate_metrics(y_test, y_pred16)
+    y_pred16 = test_x @ dq_weights16 + dq_bias16
+    r2_16, mse_16 = regression_metrics(test_y, y_pred16)
     print(f"R2 score (quantized 16-bit model): {r2_16:.4f}")
     print(f"MSE (quantized 16-bit model): {mse_16:.4f}")
 
 
 if __name__ == "__main__":
-    main()
+    quantize_main()

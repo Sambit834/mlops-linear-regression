@@ -8,7 +8,7 @@ from sklearn.linear_model import LinearRegression
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from utils import load_dataset, create_model, save_model, load_model
+from utils import fetch_data_split, build_regressor, persist_model, restore_model
 
 
 class TestTraining:
@@ -16,65 +16,65 @@ class TestTraining:
 
     def test_dataset_loading(self):
         """Test dataset loading functionality."""
-        X_train, X_test, y_train, y_test = load_dataset()
+        train_x, test_x, train_y, test_y = fetch_data_split()
 
         # Check if data is loaded correctly
-        assert X_train is not None
-        assert X_test is not None
-        assert y_train is not None
-        assert y_test is not None
+        assert train_x is not None
+        assert test_x is not None
+        assert train_y is not None
+        assert test_y is not None
 
         # Check shapes
-        assert X_train.shape[1] == 8  # California housing has 8 features
-        assert X_test.shape[1] == 8
-        assert len(X_train) == len(y_train)
-        assert len(X_test) == len(y_test)
+        assert train_x.shape[1] == 8  # California housing has 8 features
+        assert test_x.shape[1] == 8
+        assert len(train_x) == len(train_y)
+        assert len(test_x) == len(test_y)
 
         # Check train/test split ratio (approximately 80/20)
-        total_samples = len(X_train) + len(X_test)
-        train_ratio = len(X_train) / total_samples
+        total_samples = len(train_x) + len(test_x)
+        train_ratio = len(train_x) / total_samples
         assert 0.75 <= train_ratio <= 0.85
 
     def test_model_creation(self):
         """Test model creation."""
-        model = create_model()
+        reg = build_regressor()
 
         # Check if model is LinearRegression instance
-        assert isinstance(model, LinearRegression)
-        assert hasattr(model, 'fit')
-        assert hasattr(model, 'predict')
+        assert isinstance(reg, LinearRegression)
+        assert hasattr(reg, 'fit')
+        assert hasattr(reg, 'predict')
 
     def test_model_training(self):
         """Test if the model can be trained and has required attributes."""
-        X_train, X_test, y_train, y_test = load_dataset()
-        model = create_model()
+        train_x, test_x, train_y, test_y = fetch_data_split()
+        reg = build_regressor()
 
         # Train model
-        model.fit(X_train, y_train)
+        reg.fit(train_x, train_y)
 
         # Check if model was trained (coefficients exist)
-        assert hasattr(model, 'coef_')
-        assert hasattr(model, 'intercept_')
-        assert model.coef_ is not None
-        assert model.intercept_ is not None
+        assert hasattr(reg, 'coef_')
+        assert hasattr(reg, 'intercept_')
+        assert reg.coef_ is not None
+        assert reg.intercept_ is not None
 
         # Check coefficient shape
-        assert model.coef_.shape == (8,)  # 8 features
-        assert isinstance(model.intercept_, (float, np.float64))
+        assert reg.coef_.shape == (8,)  # 8 features
+        assert isinstance(reg.intercept_, (float, np.float64))
 
     def test_model_performance(self):
         """Test if R² score exceeds minimum threshold."""
-        from utils import calculate_metrics
+        from utils import regression_metrics
 
-        X_train, X_test, y_train, y_test = load_dataset()
-        model = create_model()
-        model.fit(X_train, y_train)
+        train_x, test_x, train_y, test_y = fetch_data_split()
+        reg = build_regressor()
+        reg.fit(train_x, train_y)
 
         # Make predictions
-        y_pred = model.predict(X_test)
+        preds = reg.predict(test_x)
 
         # Calculate R² score
-        r2, mse = calculate_metrics(y_test, y_pred)
+        r2, mse = regression_metrics(test_y, preds)
 
         # Check if R² score exceeds minimum threshold (0.5)
         assert r2 > 0.5, f"R² score {r2:.4f} is below minimum threshold of 0.5"
@@ -85,23 +85,23 @@ class TestTraining:
 
     def test_model_save_load(self):
         """Test model saving and loading."""
-        X_train, X_test, y_train, y_test = load_dataset()
-        model = create_model()
-        model.fit(X_train, y_train)
+        train_x, test_x, train_y, test_y = fetch_data_split()
+        reg = build_regressor()
+        reg.fit(train_x, train_y)
 
         # Save model
         test_path = "test_model.joblib"
-        save_model(model, test_path)
+        persist_model(reg, test_path)
 
         # Check if file exists
         assert os.path.exists(test_path)
 
         # Load model
-        loaded_model = load_model(test_path)
+        loaded_reg = restore_model(test_path)
 
         # Check if loaded model works
-        pred_original = model.predict(X_test[:5])
-        pred_loaded = loaded_model.predict(X_test[:5])
+        pred_original = reg.predict(test_x[:5])
+        pred_loaded = loaded_reg.predict(test_x[:5])
 
         # Predictions should be identical
         np.testing.assert_array_almost_equal(pred_original, pred_loaded)

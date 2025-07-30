@@ -1,42 +1,42 @@
 import numpy as np
 
 from utils import (
-    load_dataset, create_model, save_model,
-    calculate_metrics
+    fetch_data_split, build_regressor, persist_model,
+    regression_metrics
 )
 
 
-def main():
-    """Main training function."""
-    print("Loading California Housing dataset...")
-    X_train, X_test, y_train, y_test = load_dataset()
+def run_training():
+    """Entry point for model training."""
+    print("Fetching California Housing data...")
+    train_x, test_x, train_y, test_y = fetch_data_split()
 
-    print("Creating LinearRegression model...")
-    model = create_model()
+    print("Building LinearRegression estimator...")
+    reg = build_regressor()
 
-    print("Training model...")
-    model.fit(X_train, y_train)
+    print("Fitting regressor...")
+    reg.fit(train_x, train_y)
 
-    # Make predictions
-    y_pred = model.predict(X_test)
+    # Generate predictions
+    preds = reg.predict(test_x)
 
-    # Calculate metrics
-    r2, mse = calculate_metrics(y_test, y_pred)
-    max_pred_error = np.max(np.abs(y_test - y_pred))
-    mean_pred_error = np.mean(np.abs(y_test - y_pred))
+    # Compute metrics
+    r2_val, mse_val = regression_metrics(test_y, preds)
+    max_err = np.max(np.abs(test_y - preds))
+    mean_err = np.mean(np.abs(test_y - preds))
 
-    print(f"R² Score: {r2:.4f}")
-    print(f"Mean Squared Error (Loss): {mse:.4f}")
-    print(f"Max Prediction Error: {max_pred_error:.4f}")
-    print(f"Mean Prediction Error: {mean_pred_error:.4f}")
+    print(f"R² Score: {r2_val:.4f}")
+    print(f"Mean Squared Error (Loss): {mse_val:.4f}")
+    print(f"Max Prediction Error: {max_err:.4f}")
+    print(f"Mean Prediction Error: {mean_err:.4f}")
 
     # Save model
-    model_path = "models/linear_regression_model.joblib"
-    save_model(model, model_path)
-    print(f"Model saved to {model_path}")
+    out_model = "models/linear_regression_model.joblib"
+    persist_model(reg, out_model)
+    print(f"Model saved to {out_model}")
 
-    return model, r2, mse
+    return reg, r2_val, mse_val
 
 
 if __name__ == "__main__":
-    main()
+    run_training()
