@@ -12,7 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy source code
 COPY src/ ./source/
-COPY src/models/ ./artifacts/
+COPY artifacts/ ./artifacts/
 
 # Set Python path
 ENV PYTHONPATH=/application/source
